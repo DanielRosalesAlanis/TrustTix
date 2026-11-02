@@ -4,11 +4,13 @@ import { fechaCorta, numero, precio } from '../utils/formato'
 import Disponibilidad, { quedanPocos } from './Disponibilidad'
 import Portada from './Portada'
 import { IconoCalendario, IconoUbicacion } from './Iconos'
+import { textoDistancia } from '../utils/mapas'
 
 // Tarjeta de evento con estructura fija: título en una línea, recinto y fecha
 // en una fila, barra de lugares y pie con precio y botón de ancho constante.
 // Así todas las tarjetas se alinean sin importar cuánto texto tengan.
-export default function TarjetaEvento({ evento, boleto }) {
+// `km` es la distancia al recinto cuando se conoce la ubicación de quien la ve.
+export default function TarjetaEvento({ evento, boleto, km = null }) {
   const { misBoletos } = useApp()
   const tengoBoleto = boleto ?? misBoletos.find((b) => b.eventoId === evento.id)
   const agotado = evento.vendidos >= evento.capacidad
@@ -46,7 +48,7 @@ export default function TarjetaEvento({ evento, boleto }) {
   return (
     <article className="tarjeta-evento">
       <Link to={`/eventos/${evento.id}`} className="tarjeta-evento__enlace" aria-label={`Ver ${evento.titulo}`}>
-        <Portada evento={evento} pestana insignia={insignia} />
+        <Portada evento={evento} pestana insignia={insignia} distancia={km != null ? textoDistancia(km) : null} />
       </Link>
       <div className="tarjeta-evento__cuerpo">
         <h3 className="tarjeta-evento__titulo" title={evento.titulo}>

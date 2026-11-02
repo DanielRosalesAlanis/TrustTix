@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import Encabezado from '../components/Encabezado'
@@ -9,6 +9,9 @@ import Modal from '../components/Modal'
 import { IconoCalendario, IconoEscudo, IconoUbicacion } from '../components/Iconos'
 import { abreviar, diaMes, fechaLarga, numero, precio } from '../utils/formato'
 import { enlaceCuenta } from '../stellar/config'
+import useUbicacion from '../hooks/useUbicacion'
+import useCoordenadas from '../hooks/useCoordenadas'
+import { comoLlegar, distanciaKm, mapaEmbebido, textoDistancia } from '../utils/mapas'
 
 export default function DetalleEvento() {
   const { id } = useParams()
@@ -17,8 +20,11 @@ export default function DetalleEvento() {
   const [confirmando, setConfirmando] = useState(false)
   const [firmando, setFirmando] = useState(false)
   const [error, setError] = useState('')
+  const { ubicacion } = useUbicacion()
 
   const evento = eventos.find((ev) => ev.id === Number(id))
+  const soloEste = useMemo(() => (evento ? [evento] : []), [evento])
+  const coordenadasDe = useCoordenadas(soloEste)
   if (!evento && cargando) {
     return (
       <>
@@ -40,6 +46,8 @@ export default function DetalleEvento() {
   const agotado = evento.vendidos >= evento.capacidad
   const { dia, mes } = diaMes(evento.fecha)
   const mapa = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${evento.recinto}, ${evento.direccion}`)}`
+  const punto = coordenadasDe(evento)
+  const km = ubicacion && punto ? distanciaKm(ubicacion, punto) : null
 
   const confirmarCompra = async () => {
     setError('')
@@ -85,15 +93,22 @@ export default function DetalleEvento() {
 
           <section className="detalle__bloque detalle__ubicacion">
             <h3 className="detalle__subtitulo">Ubicación</h3>
-            <div className="detalle__lugar">
-              <a href={mapa} target="_blank" rel="noreferrer" className="mapa" aria-label="Abrir en Google Maps">
-                <span className="mapa__pin" aria-hidden="true" />
-                <span className="mapa__etiqueta">{evento.recinto}</span>
-              </a>
+            <div className={`detalle__lugar ${punto ? 'detalle__lugar--mapa' : ''}`}>
+              {punto ? (
+                <iframe className="mapa mapa--marco" title={`Mapa de ${evento.recinto}`} src={mapaEmbebido(punto)} loading="lazy" />
+              ) : (
+                <a href={mapa} target="_blank" rel="noreferrer" className="mapa" aria-label="Abrir en Google Maps">
+                  <span className="mapa__pin" aria-hidden="true" />
+                  <span className="mapa__etiqueta">{evento.recinto}</span>
+                </a>
+              )}
               <div>
                 <p className="detalle__recinto">{evento.recinto}</p>
                 <p className="detalle__direccion">{evento.direccion}</p>
-                <a href={mapa} target="_blank" rel="noreferrer" className="enlace">Abrir en Google Maps</a>
+                {km != null && <p className="nota">{textoDistancia(km)} de tu ubicación</p>}
+                <a href={punto ? comoLlegar(punto) : mapa} target="_blank" rel="noreferrer" className="enlace">
+                  {punto ? 'Cómo llegar' : 'Abrir en Google Maps'}
+                </a>
               </div>
             </div>
           </section>

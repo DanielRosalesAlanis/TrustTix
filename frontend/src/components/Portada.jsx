@@ -1,8 +1,9 @@
 // Banner del evento. Si el evento trae `imagen`, se usa la imagen; si no,
 // se dibuja una portada con el degradado y el texto del evento.
 // `pestana` agrega la pestaña oscura recortada que aparece en el diseño y
-// `insignia` muestra una etiqueta en la esquina superior derecha.
-export default function Portada({ evento, pestana = false, alta = false, insignia = null }) {
+// `insignia` muestra una etiqueta en la esquina superior derecha y `distancia`
+// otra en la izquierda, con lo lejos que está el recinto.
+export default function Portada({ evento, pestana = false, alta = false, insignia = null, distancia = null }) {
   const { portada, imagen, titulo } = evento
   return (
     <div className={`portada ${alta ? 'portada--alta' : ''} ${pestana ? 'portada--pestana' : ''}`}>
@@ -17,6 +18,7 @@ export default function Portada({ evento, pestana = false, alta = false, insigni
         </div>
       )}
       {insignia && <span className="portada__insignia">{insignia}</span>}
+      {distancia && <span className="portada__insignia portada__insignia--izquierda">{distancia}</span>}
       {pestana && <span className="portada__pestana" aria-hidden="true" />}
     </div>
   )

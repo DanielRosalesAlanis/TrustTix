@@ -4,32 +4,67 @@ import { CATEGORIAS } from '../data/eventos'
 import Encabezado from '../components/Encabezado'
 import TarjetaEvento from '../components/TarjetaEvento'
 import { IconoBuscar, IconoUbicacion } from '../components/Iconos'
+import useUbicacion from '../hooks/useUbicacion'
+import useCoordenadas from '../hooks/useCoordenadas'
+import { distanciaKm } from '../utils/mapas'
 
 const sinAcentos = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+
+const TEXTO_UBICACION = {
+  inactiva: 'Usar mi ubicación',
+  buscando: 'Buscando tu ubicación…',
+  denegada: 'Ubicación bloqueada. Actívala en los permisos del sitio',
+  error: 'No pudimos ubicarte. Intentar de nuevo',
+}
 
 export default function Inicio() {
   const { eventos, cargando, errorRed } = useApp()
   const [busqueda, setBusqueda] = useState('')
   const [categoria, setCategoria] = useState('Todos')
+  const { ubicacion, estado, localizar } = useUbicacion()
+  const coordenadasDe = useCoordenadas(eventos, Boolean(ubicacion))
 
+  // Con ubicación, los eventos van del más cercano al más lejano; los que no
+  // se pudieron ubicar quedan al final en su orden original.
   const visibles = useMemo(() => {
     const q = sinAcentos(busqueda.trim())
-    return eventos.filter(
-      (ev) =>
-        (categoria === 'Todos' || ev.categoria === categoria) &&
-        (!q || sinAcentos(`${ev.titulo} ${ev.recinto} ${ev.ciudad}`).includes(q)),
-    )
-  }, [eventos, busqueda, categoria])
+    const lista = eventos
+      .filter(
+        (ev) =>
+          (categoria === 'Todos' || ev.categoria === categoria) &&
+          (!q || sinAcentos(`${ev.titulo} ${ev.recinto} ${ev.ciudad}`).includes(q)),
+      )
+      .map((ev) => {
+        const punto = ubicacion ? coordenadasDe(ev) : null
+        return { evento: ev, km: punto ? distanciaKm(ubicacion, punto) : null }
+      })
+    if (ubicacion) lista.sort((a, b) => (a.km ?? Infinity) - (b.km ?? Infinity) || 0)
+    return lista
+  }, [eventos, busqueda, categoria, ubicacion, coordenadasDe])
 
   return (
     <>
       <Encabezado titulo="Inicio" />
 
       <section className="seccion">
-        <h2 className="subtitulo">Principales eventos</h2>
-        <p className="ubicacion">
-          <IconoUbicacion width={14} height={14} /> Cuernavaca, Mor.
-        </p>
+        <h2 className="subtitulo">{ubicacion ? 'Eventos cerca de ti' : 'Principales eventos'}</h2>
+        <div className="ubicacion">
+          <IconoUbicacion width={14} height={14} />
+          {estado === 'lista' ? (
+            <button type="button" className="ubicacion__boton" onClick={localizar} title="Actualizar mi ubicación">
+              {ubicacion.ciudad ?? 'Tu ubicación actual'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="ubicacion__boton ubicacion__boton--accion"
+              onClick={localizar}
+              disabled={estado === 'buscando'}
+            >
+              {TEXTO_UBICACION[estado]}
+            </button>
+          )}
+        </div>
 
         <label className="buscador">
           <span className="sr-only">Buscar eventos</span>
@@ -63,8 +98,8 @@ export default function Inicio() {
         <p className="vacio">Leyendo eventos desde Stellar Testnet…</p>
       ) : visibles.length > 0 ? (
         <div className="rejilla">
-          {visibles.map((ev) => (
-            <TarjetaEvento key={ev.id} evento={ev} />
+          {visibles.map(({ evento, km }) => (
+            <TarjetaEvento key={evento.id} evento={evento} km={km} />
           ))}
         </div>
       ) : (

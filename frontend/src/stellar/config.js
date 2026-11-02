@@ -2,7 +2,7 @@ import { Networks } from '@stellar/stellar-sdk'
 
 // Contrato TrustTix desplegado en Stellar Testnet.
 export const CONTRATO_ID =
-  import.meta.env.VITE_CONTRATO_ID ?? 'CDL3FPYBY7HDNFDCCJMUZ4OLWHXWX7AXZ3WWFFM7YYHKA3O3LDRGYK4R'
+  import.meta.env.VITE_CONTRATO_ID ?? 'CCWWMLZANZV54WMJQ5JQ6XP2AAUE5BGKK3Q5CPQZEJMREJ4OYRVN36GD'
 
 export const RPC_URL = import.meta.env.VITE_RPC_URL ?? 'https://soroban-testnet.stellar.org'
 export const RED = Networks.TESTNET

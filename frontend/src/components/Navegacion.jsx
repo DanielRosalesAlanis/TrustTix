@@ -1,13 +1,25 @@
 import { NavLink } from 'react-router-dom'
 import Logo from './Logo'
-import { IconoBoleto, IconoEscudo, IconoInicio, IconoPerfil } from './Iconos'
+import { IconoBoleto, IconoCalendario, IconoEscaner, IconoEscudo, IconoInicio, IconoMas, IconoPerfil } from './Iconos'
+import { NOMBRE_PORTAL, PORTAL } from '../portal'
 
-const ENLACES = [
-  { a: '/inicio', texto: 'Inicio', Icono: IconoInicio },
-  { a: '/boletos', texto: 'Mis boletos', Icono: IconoBoleto },
-  { a: '/verificar', texto: 'Verificar', Icono: IconoEscudo },
-  { a: '/perfil', texto: 'Perfil', Icono: IconoPerfil },
-]
+const ENLACES = {
+  publico: [
+    { a: '/inicio', texto: 'Inicio', Icono: IconoInicio },
+    { a: '/boletos', texto: 'Mis boletos', Icono: IconoBoleto },
+    { a: '/verificar', texto: 'Verificar', Icono: IconoEscudo },
+    { a: '/perfil', texto: 'Perfil', Icono: IconoPerfil },
+  ],
+  admin: [
+    { a: '/organizador', texto: 'Mis eventos', Icono: IconoCalendario, exacto: true },
+    { a: '/organizador/crear', texto: 'Crear evento', Icono: IconoMas },
+    { a: '/perfil', texto: 'Perfil', Icono: IconoPerfil },
+  ],
+  staff: [
+    { a: '/acceso', texto: 'Eventos', Icono: IconoEscaner },
+    { a: '/perfil', texto: 'Mi cuenta', Icono: IconoPerfil },
+  ],
+}
 
 // En celular es una barra inferior; en pantallas grandes se vuelve barra lateral.
 export default function Navegacion() {
@@ -15,10 +27,13 @@ export default function Navegacion() {
     <nav className="navegacion" aria-label="Principal">
       <div className="navegacion__marca">
         <Logo size={40} />
-        <span>TrustTix</span>
+        <span>
+          TrustTix
+          {PORTAL !== 'publico' && <small>{NOMBRE_PORTAL[PORTAL]}</small>}
+        </span>
       </div>
-      {ENLACES.map(({ a, texto, Icono }) => (
-        <NavLink key={a} to={a} className="navegacion__enlace">
+      {ENLACES[PORTAL].map(({ a, texto, Icono, exacto }) => (
+        <NavLink key={a} to={a} end={exacto} className="navegacion__enlace">
           <Icono width={22} height={22} />
           <span>{texto}</span>
         </NavLink>

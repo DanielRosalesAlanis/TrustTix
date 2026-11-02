@@ -12,7 +12,7 @@ export default function Organizador() {
 
   return (
     <>
-      <Encabezado titulo="Mis eventos" atras />
+      <Encabezado titulo="Mis eventos" />
 
       {!billetera ? (
         <div className="vacio vacio--caja">
@@ -31,7 +31,7 @@ export default function Organizador() {
             <ul className="lista">
               {mios.map((ev) => (
                 <li key={ev.id} className="tarjeta lista__item">
-                  <Link to={`/eventos/${ev.id}`} className="lista__titulo">{ev.titulo}</Link>
+                  <Link to={`/organizador/${ev.id}`} className="lista__titulo">{ev.titulo}</Link>
                   <p className="nota">{ev.recinto} · {fechaCorta(ev)}</p>
                   <Disponibilidad evento={ev} detallada />
                 </li>

@@ -1,16 +1,18 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { CATEGORIAS } from '../data/eventos'
 import Encabezado from '../components/Encabezado'
 import BotonBilletera from '../components/BotonBilletera'
+import useUbicacion from '../hooks/useUbicacion'
 import { aStroops } from '../utils/formato'
+import { buscarLugar, mapaEmbebido } from '../utils/mapas'
 
 const VACIO = {
   titulo: '',
   categoria: 'Conciertos',
   recinto: '',
-  ciudad: 'Cuernavaca, Mor.',
+  ciudad: '',
   direccion: '',
   fecha: '',
   hora: '20:00',
@@ -22,11 +24,48 @@ const VACIO = {
 export default function CrearEvento() {
   const { billetera, crearEvento } = useApp()
   const navigate = useNavigate()
-  const [datos, setDatos] = useState(VACIO)
+  const { ubicacion } = useUbicacion()
+  const [datos, setDatos] = useState(() => ({ ...VACIO, ciudad: ubicacion?.ciudad ?? '' }))
+  const [punto, setPunto] = useState(null)
+  const [ubicando, setUbicando] = useState(false)
+  const [errorMapa, setErrorMapa] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState('')
 
-  const cambiar = (campo) => (e) => setDatos((d) => ({ ...d, [campo]: e.target.value }))
+  // La ciudad se propone con la ubicación del organizador, sin pisar lo que ya escribió.
+  useEffect(() => {
+    if (ubicacion?.ciudad) setDatos((d) => (d.ciudad ? d : { ...d, ciudad: ubicacion.ciudad }))
+  }, [ubicacion])
+
+  const cambiar = (campo) => (e) => {
+    setDatos((d) => ({ ...d, [campo]: e.target.value }))
+    if (campo === 'direccion' || campo === 'ciudad' || campo === 'recinto') setPunto(null)
+  }
+
+  // Primero la dirección; si no aparece, el nombre del recinto en esa ciudad.
+  const ubicar = async () => {
+    const consultas = [[datos.direccion, datos.ciudad], [datos.recinto, datos.ciudad]]
+      .map((partes) => partes.filter((p) => p.trim()).join(', '))
+      .filter(Boolean)
+    for (const consulta of consultas) {
+      const encontrado = await buscarLugar(consulta)
+      if (encontrado) return encontrado
+    }
+    return null
+  }
+
+  const verEnMapa = async () => {
+    setUbicando(true)
+    setErrorMapa('')
+    try {
+      const encontrado = await ubicar()
+      setPunto(encontrado)
+      if (!encontrado) setErrorMapa('No encontramos esa dirección en el mapa. Revisa la calle y la ciudad.')
+    } catch (e) {
+      setErrorMapa(e.message)
+    }
+    setUbicando(false)
+  }
 
   const enviar = async (e) => {
     e.preventDefault()
@@ -43,8 +82,9 @@ export default function CrearEvento() {
     setError('')
     setEnviando(true)
     try {
-      const { id } = await crearEvento({ ...datos, capacidad, precio: aStroops(precioXLM) })
-      navigate(`/eventos/${id}`)
+      const coordenadas = punto ?? (await ubicar().catch(() => null))
+      const { id } = await crearEvento({ ...datos, capacidad, precio: aStroops(precioXLM), coordenadas })
+      navigate(`/organizador/${id}`)
     } catch (err) {
       setError(err.message)
       setEnviando(false)
@@ -75,7 +115,7 @@ export default function CrearEvento() {
             </label>
             <label className="campo">
               <span>Ciudad</span>
-              <input required value={datos.ciudad} onChange={cambiar('ciudad')} />
+              <input required value={datos.ciudad} onChange={cambiar('ciudad')} placeholder="Ej. Cuernavaca, Morelos" />
             </label>
           </div>
           <label className="campo">
@@ -84,8 +124,23 @@ export default function CrearEvento() {
           </label>
           <label className="campo">
             <span>Dirección</span>
-            <input required value={datos.direccion} onChange={cambiar('direccion')} />
+            <input required value={datos.direccion} onChange={cambiar('direccion')} placeholder="Calle, número y colonia" />
           </label>
+          <div className="campo">
+            <button
+              type="button"
+              className="boton boton--contorno"
+              onClick={verEnMapa}
+              disabled={ubicando || !(datos.direccion.trim() || datos.recinto.trim())}
+            >
+              {ubicando ? 'Buscando en el mapa…' : punto ? 'Volver a buscar en el mapa' : 'Ver en el mapa'}
+            </button>
+            {punto && (
+              <iframe className="mapa mapa--marco" title="Ubicación del evento" src={mapaEmbebido(punto)} loading="lazy" />
+            )}
+            {punto && <p className="nota">Si el punto no es el correcto, ajusta la dirección antes de firmar.</p>}
+            {errorMapa && <p className="nota">{errorMapa}</p>}
+          </div>
           <div className="campo-doble">
             <label className="campo">
               <span>Fecha</span>
@@ -115,6 +170,10 @@ export default function CrearEvento() {
             <span>
               <strong>La capacidad no se podrá aumentar después.</strong> El contrato rechazará cualquier venta por encima de ese número.
             </span>
+          </p>
+          <p className="nota">
+            En el contrato quedan el nombre, el recinto, la fecha, la capacidad y el precio. La categoría, la dirección y la descripción
+            se guardan en este navegador.
           </p>
 
           {error && <p className="alerta alerta--error" role="alert">{error}</p>}

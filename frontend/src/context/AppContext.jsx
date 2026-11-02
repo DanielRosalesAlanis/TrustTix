@@ -2,13 +2,17 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { metadatos, portadaGenerica } from '../data/eventos'
 import * as red from '../stellar/contrato'
 import { conectar, reconectar } from '../stellar/billetera'
+import { salirDeGoogle } from '../auth/google'
 
 // Estado de la app. Todo lo que define la validez de un boleto (eventos,
 // capacidad, vendidos, dueños y entradas) se lee del contrato TrustTix en
-// Testnet. En el navegador solo se guardan la sesión, los datos descriptivos
-// de eventos creados aquí y los enlaces a las transacciones hechas desde aquí.
+// Testnet. En el navegador solo se guardan la sesión de Google, los datos
+// descriptivos de eventos creados aquí, el personal autorizado desde aquí y
+// los enlaces a las transacciones hechas desde aquí.
 
-const CLAVE = 'trusttix-v5'
+// Cambia junto con el contrato: los números de evento y boleto de otro
+// contrato no corresponden a los de este.
+const CLAVE = 'trusttix-v6'
 const AppContext = createContext(null)
 
 function cargarLocal() {
@@ -40,6 +44,7 @@ function armarEvento(id, enRed, metaLocal) {
     organizadorNombre: meta.organizadorNombre ?? null,
     fechaFin: meta.fechaFin,
     imagen: meta.imagen,
+    coordenadas: meta.lat != null ? { lat: meta.lat, lng: meta.lng } : null,
     portada: portadaGenerica(enRed.nombre),
   }
 }
@@ -59,6 +64,7 @@ export function AppProvider({ children }) {
   const [usuario, setUsuario] = useState(inicial.usuario ?? null)
   const [metaLocal, setMetaLocal] = useState(inicial.metaLocal ?? {})
   const [registro, setRegistro] = useState(inicial.registro ?? {})
+  const [personal, setPersonal] = useState(inicial.personal ?? {})
   const [billetera, setBilletera] = useState(null)
   const [eventos, setEventos] = useState([])
   const [misBoletos, setMisBoletos] = useState([])
@@ -67,11 +73,11 @@ export function AppProvider({ children }) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(CLAVE, JSON.stringify({ usuario, metaLocal, registro }))
+      localStorage.setItem(CLAVE, JSON.stringify({ usuario, metaLocal, registro, personal }))
     } catch {
       // Sin almacenamiento: la app sigue funcionando, solo pierde la sesión.
     }
-  }, [usuario, metaLocal, registro])
+  }, [usuario, metaLocal, registro, personal])
 
   const anotar = useCallback((boletoId, tipo, hash) => {
     setRegistro((r) => ({ ...r, [boletoId]: [...(r[boletoId] ?? []), { tipo, hash, fecha: new Date().toISOString() }] }))
@@ -114,11 +120,11 @@ export function AppProvider({ children }) {
     recargarMisBoletos(billetera).catch(() => {})
   }, [billetera, recargarMisBoletos])
 
-  const iniciarSesion = useCallback(() => {
-    setUsuario({ nombre: 'Invitado TrustTix', correo: 'invitado@trusttix.app' })
-  }, [])
+  // perfil: { id, nombre, correo, foto } de la cuenta de Google.
+  const iniciarSesion = useCallback((perfil) => setUsuario(perfil), [])
 
   const cerrarSesion = useCallback(() => {
+    salirDeGoogle()
     setUsuario(null)
     setBilletera(null)
   }, [])
@@ -182,8 +188,31 @@ export function AppProvider({ children }) {
     [billetera, anotar],
   )
 
+  // Por defecto pregunta por la billetera conectada; con `cuenta`, por cualquier otra.
   const esPersonal = useCallback(
-    (eventoId) => (billetera ? red.esPersonal(eventoId, billetera) : Promise.resolve(false)),
+    (eventoId, cuenta = billetera) => (cuenta ? red.esPersonal(eventoId, cuenta) : Promise.resolve(false)),
+    [billetera],
+  )
+
+  // El contrato no tiene una lista del personal, así que el organizador
+  // recuerda aquí a quién autorizó y la app lo confirma contra el contrato.
+  const autorizarPersonal = useCallback(
+    async (eventoId, cuenta) => {
+      if (!billetera) throw new Error('Conecta la billetera del organizador.')
+      const { hash } = await red.autorizarPersonal(billetera, eventoId, cuenta)
+      setPersonal((p) => ({ ...p, [eventoId]: [...new Set([...(p[eventoId] ?? []), cuenta])] }))
+      return hash
+    },
+    [billetera],
+  )
+
+  const quitarPersonal = useCallback(
+    async (eventoId, cuenta) => {
+      if (!billetera) throw new Error('Conecta la billetera del organizador.')
+      const { hash } = await red.quitarPersonal(billetera, eventoId, cuenta)
+      setPersonal((p) => ({ ...p, [eventoId]: (p[eventoId] ?? []).filter((c) => c !== cuenta) }))
+      return hash
+    },
     [billetera],
   )
 
@@ -209,7 +238,14 @@ export function AppProvider({ children }) {
       const id = Number(resultado)
       setMetaLocal((m) => ({
         ...m,
-        [id]: { categoria: datos.categoria, ciudad: datos.ciudad, direccion: datos.direccion, descripcion: datos.descripcion },
+        [id]: {
+          categoria: datos.categoria,
+          ciudad: datos.ciudad,
+          direccion: datos.direccion,
+          descripcion: datos.descripcion,
+          lat: datos.coordenadas?.lat,
+          lng: datos.coordenadas?.lng,
+        },
       }))
       await recargarEventos()
       return { id, hash }
@@ -224,6 +260,7 @@ export function AppProvider({ children }) {
       eventos,
       misBoletos,
       registro,
+      personal,
       cargando,
       errorRed,
       iniciarSesion,
@@ -237,10 +274,12 @@ export function AppProvider({ children }) {
       consultarBoleto,
       registrarEntrada,
       esPersonal,
+      autorizarPersonal,
+      quitarPersonal,
       boletosDeEvento,
       crearEvento,
     }),
-    [usuario, billetera, eventos, misBoletos, registro, cargando, errorRed, iniciarSesion, cerrarSesion, conectarBilletera, desconectarBilletera, recargarEventos, recargarMisBoletos, comprar, transferir, consultarBoleto, registrarEntrada, esPersonal, boletosDeEvento, crearEvento],
+    [usuario, billetera, eventos, misBoletos, registro, personal, cargando, errorRed, iniciarSesion, cerrarSesion, conectarBilletera, desconectarBilletera, recargarEventos, recargarMisBoletos, comprar, transferir, consultarBoleto, registrarEntrada, esPersonal, autorizarPersonal, quitarPersonal, boletosDeEvento, crearEvento],
   )
 
   return <AppContext.Provider value={valor}>{children}</AppContext.Provider>

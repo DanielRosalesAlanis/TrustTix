@@ -109,3 +109,6 @@ export const registrarEntrada = (personal, boletoId) =>
 
 export const autorizarPersonal = (organizador, eventoId, cuenta) =>
   escribir(organizador, 'autorizar_personal', { evento_id: eventoId, cuenta })
+
+export const quitarPersonal = (organizador, eventoId, cuenta) =>
+  escribir(organizador, 'quitar_personal', { evento_id: eventoId, cuenta })
